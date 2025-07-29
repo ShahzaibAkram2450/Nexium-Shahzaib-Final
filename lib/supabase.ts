@@ -1,3 +1,20 @@
-import { createPagesBrowserClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from '@supabase/supabase-js'
 
-export const supabase = createPagesBrowserClient();
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  }
+})
+
+// Check if Supabase is properly configured
+export const isSupabaseConfigured = () => {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL && 
+         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+         process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://placeholder.supabase.co'
+}

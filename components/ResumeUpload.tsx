@@ -1,152 +1,168 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useDropzone } from "react-dropzone";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, Cast as Paste, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ResumeUploadProps {
-  onResumeProcessed: (content: string, title: string) => void;
+  onResumeUploaded: (content: string) => void;
 }
 
-export default function ResumeUpload({ onResumeProcessed }: ResumeUploadProps) {
-  const [pastedContent, setPastedContent] = useState("");
-  const [processing, setProcessing] = useState(false);
+export default function ResumeUpload({ onResumeUploaded }: ResumeUploadProps) {
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const { toast } = useToast();
 
-  const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
-      const file = acceptedFiles[0];
-      if (!file) return;
+  const handleFile = async (file: File) => {
+    if (!file) return;
 
-      setProcessing(true);
-      try {
+    const isPDF = file.type === "application/pdf";
+    const isTXT = file.name.toLowerCase().endsWith(".txt");
+
+    if (!isPDF && !isTXT) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF or TXT file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      let content = "";
+
+      if (isPDF) {
         const formData = new FormData();
-        formData.append("resume", file);
+        formData.append("file", file);
 
-        const response = await fetch("/api/resume/upload", {
+        const res = await fetch("/api/parse-pdf", {
           method: "POST",
           body: formData,
         });
 
-        if (!response.ok) {
-          throw new Error("Failed to process resume");
-        }
+        const data = await res.json();
 
-        const { content, title } = await response.json();
-        onResumeProcessed(content, title || file.name);
-        toast.success("Resume uploaded successfully!");
-      } catch (error) {
-        toast.error("Failed to process resume. Please try again.");
-      } finally {
-        setProcessing(false);
+        if (!res.ok) throw new Error(data.error || "Failed to parse PDF");
+        content = data.text;
+      } else {
+        content = await file.text();
       }
-    },
-    [onResumeProcessed]
-  );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/msword": [".doc"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        [".docx"],
-      "text/plain": [".txt"],
-    },
-    multiple: false,
-    disabled: processing,
-  });
+      if (!content.trim()) throw new Error("No text content found in the file");
 
-  const handlePasteSubmit = () => {
-    if (!pastedContent.trim()) {
-      toast.error("Please paste your resume content");
-      return;
+      onResumeUploaded(content);
+
+      toast({
+        title: "Success!",
+        description: "Resume uploaded and processed successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to process resume",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
     }
+  };
 
-    onResumeProcessed(pastedContent, "Pasted Resume");
-    toast.success("Resume content processed successfully!");
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) handleFile(droppedFile);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) handleFile(selectedFile);
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader className="text-center">
-        <CardTitle>Upload Your Resume</CardTitle>
-        <CardDescription>
-          Upload a file or paste your resume content to get started
-        </CardDescription>
+    <Card className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl hover:bg-white/10 hover:border-purple-500/30 transition-all duration-300">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-3 text-2xl font-space-grotesk gradient-text">
+          <div className="w-8 h-8 bg-gradient-to-br from-purple-500/80 to-violet-600/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
+            <i className="ri-upload-2-line text-white w-4 h-4 flex items-center justify-center"></i>
+          </div>
+          Upload Your Resume
+        </CardTitle>
       </CardHeader>
+
       <CardContent>
-        <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload">Upload File</TabsTrigger>
-            <TabsTrigger value="paste">Paste Content</TabsTrigger>
-          </TabsList>
+        <div
+          className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
+            dragActive
+              ? "border-purple-500/50 bg-purple-500/5 backdrop-blur-sm"
+              : "border-white/20 hover:border-purple-500/30 bg-white/5 backdrop-blur-sm"
+          }`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          onClick={() => document.getElementById("file-upload")?.click()}
+          aria-label="Resume upload dropzone">
+          <input
+            id="file-upload"
+            type="file"
+            accept=".txt"
+            onChange={handleChange}
+            className="hidden"
+            disabled={uploading}
+          />
 
-          <TabsContent value="upload" className="space-y-4">
-            <div
-              {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                isDragActive
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-300 hover:border-gray-400"
-              } ${processing ? "opacity-50 cursor-not-allowed" : ""}`}>
-              <input {...getInputProps()} />
-              {processing ? (
-                <div className="flex flex-col items-center space-y-2">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-                  <p className="text-sm text-gray-600">Processing resume...</p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center space-y-2">
-                  <Upload className="w-8 h-8 text-gray-400" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">
-                      {isDragActive
-                        ? "Drop your resume here"
-                        : "Drag & drop your resume here, or click to browse"}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Supports PDF, DOC, DOCX, TXT (max 10MB)
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="paste" className="space-y-4">
+          {uploading ? (
             <div className="space-y-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Paste className="w-4 h-4" />
-                <span>Paste your resume content below</span>
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500/80 to-violet-600/80 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto shadow-lg border border-purple-400/20">
+                <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full"></div>
               </div>
-              <Textarea
-                placeholder="Paste your complete resume content here..."
-                value={pastedContent}
-                onChange={(e) => setPastedContent(e.target.value)}
-                rows={12}
-                className="min-h-[300px]"
-              />
-              <Button
-                onClick={handlePasteSubmit}
-                disabled={!pastedContent.trim()}
-                className="w-full">
-                <FileText className="w-4 h-4 mr-2" />
-                Process Resume Content
-              </Button>
+              <p className="text-gray-300 font-medium text-lg">
+                Processing your resume...
+              </p>
+              <div className="flex justify-center space-x-1">
+                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                <div
+                  className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
+                  style={{ animationDelay: "0.1s" }}></div>
+                <div
+                  className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
+                  style={{ animationDelay: "0.2s" }}></div>
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
+          ) : (
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500/80 to-violet-600/80 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto shadow-lg border border-purple-400/20">
+                <i className="ri-file-upload-line text-white text-3xl w-8 h-8 flex items-center justify-center"></i>
+              </div>
+              <div>
+                <p className="text-xl font-semibold text-white mb-2">
+                  Drop your resume here
+                </p>
+                <p className="text-gray-300 mb-2">or click to browse</p>
+                <p className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-full border border-white/10 inline-block">
+                  Supports PDF and TXT files
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,380 +1,151 @@
-"use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import Dashboard from "@/components/Dashboard";
-import ResumeUpload from "@/components/ResumeUpload";
-import JobDescriptionInput from "@/components/JobDescriptionInput";
-import ResumeSuggestions from "@/components/ResumeSuggestions";
-import ResumeEditor from "@/components/ResumeEditor";
-import type {
-  Resume,
-  ResumeContent,
-  ResumeSuggestions as SuggestionsType,
-} from "@/types/resume";
-import { toast } from "sonner";
+'use client';
 
-type AppState = "dashboard" | "upload" | "job-input" | "suggestions" | "editor";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import Header from '@/components/Header';
+import ResumeUpload from '@/components/ResumeUpload';
+import JobRequirementsInput from '@/components/JobRequirementsInput';
+import SuggestionsList from '@/components/SuggestionsList';
+import { useToast } from '@/components/ui/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 
-export default function DashboardPage() {
-  const { user, loading } = useAuth();
+export default function Dashboard() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [resumeContent, setResumeContent] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [generatingSuggestions, setGeneratingSuggestions] = useState(false);
   const router = useRouter();
-  const [appState, setAppState] = useState<AppState>("dashboard");
-  const [currentResume, setCurrentResume] = useState<Resume | null>(null);
-  const [resumeContent, setResumeContent] = useState<ResumeContent | null>(
-    null
-  );
-  const [jobDescription, setJobDescription] = useState<any>(null);
-  const [suggestions, setSuggestions] = useState<SuggestionsType | null>(null);
-  const [resumeTitle, setResumeTitle] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) {
-      router.replace("/");
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        router.push('/auth');
+        return;
+      }
+      
+      setUser(user);
+      setLoading(false);
+    };
+
+    checkUser();
+  }, [router]);
+
+  const handleGenerateSuggestions = async () => {
+    if (!resumeContent || !jobDescription) {
+      toast({
+        title: "Missing Information",
+        description: "Please upload your resume and add job description first.",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [user, loading, router]);
+
+    setGeneratingSuggestions(true);
+
+    try {
+      const response = await fetch('/api/tailor-resume', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resumeContent,
+          jobDescription,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate suggestions');
+      }
+
+      setSuggestions(data.suggestions);
+      
+      toast({
+        title: "Success!",
+        description: "AI suggestions generated successfully.",
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to generate suggestions',
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingSuggestions(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-[#0e0e10]">
+        <Header />
+        <div className="flex items-center justify-center h-96 relative">
+          <div className="absolute top-20 left-20 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl animate-float"></div>
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl">
+            <div className="animate-spin w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full mx-auto"></div>
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  return (
+    <div className="min-h-screen bg-[#0e0e10] text-white relative overflow-hidden">
+      <div className="absolute inset-0">
+        <div className="absolute top-20 left-20 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
+      </div>
+      
+      <Header />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        <div className="mb-12 animate-fade-in">
+          <h1 className="text-4xl md:text-5xl font-bold font-space-grotesk gradient-text mb-4">Resume Tailoring Dashboard</h1>
+          <p className="text-xl text-gray-300 leading-relaxed">Upload your resume and job requirements to get AI-powered tailoring suggestions</p>
+        </div>
 
-  const handleNewResume = () => {
-    setCurrentResume(null);
-    setResumeContent(null);
-    setJobDescription(null);
-    setSuggestions(null);
-    setResumeTitle("");
-    setAppState("upload");
-  };
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <div className="space-y-8 animate-slide-in-left">
+            <ResumeUpload onResumeUploaded={setResumeContent} />
+            <JobRequirementsInput onJobDescription={setJobDescription} />
+          </div>
+          
+          <div className="animate-slide-in-right">
+            <SuggestionsList
+              suggestions={suggestions}
+              loading={generatingSuggestions}
+              onGenerateSuggestions={handleGenerateSuggestions}
+              canGenerate={!!resumeContent && !!jobDescription}
+            />
+          </div>
+        </div>
 
-  const handleOpenResume = (resume: Resume) => {
-    setCurrentResume(resume);
-    setResumeContent(resume.content);
-    setResumeTitle(resume.title);
-    setAppState("editor");
-  };
-
-  const handleResumeProcessed = async (content: string, title: string) => {
-    console.log("🔄 Processing resume:", {
-      title,
-      contentLength: content.length,
-    });
-
-    try {
-      const parsedContent: ResumeContent = JSON.parse(content);
-      setResumeContent(parsedContent);
-      setResumeTitle(title);
-
-      console.log("📤 Sending POST request to /api/resumes");
-
-      const response = await fetch("/api/resumes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          title,
-          content: parsedContent,
-          originalContent: content,
-        }),
-      });
-
-      console.log("📡 POST Response status:", response.status);
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-          console.error("❌ POST API Error:", errorData);
-        } catch (parseError) {
-          console.error("❌ Failed to parse POST error response:", parseError);
-        }
-        throw new Error(errorMessage);
-      }
-
-      const { resume } = await response.json();
-      console.log("✅ Resume saved successfully:", resume);
-      setCurrentResume(resume);
-      setAppState("job-input");
-    } catch (error) {
-      console.error("🔥 Error processing resume:", error);
-
-      // Fallback: create basic content structure
-      const basicContent: ResumeContent = {
-        personalInfo: {
-          name: "Unknown",
-          email: "",
-          phone: "",
-          location: "",
-        },
-        summary: content.slice(0, 200) + "...",
-        experience: [],
-        education: [],
-        skills: [],
-      };
-
-      setResumeContent(basicContent);
-      setResumeTitle(title);
-
-      try {
-        console.log("🔄 Attempting fallback save with basic content");
-
-        const response = await fetch("/api/resumes", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            title,
-            content: basicContent,
-            originalContent: content,
-          }),
-        });
-
-        if (response.ok) {
-          const { resume } = await response.json();
-          console.log("✅ Fallback save successful:", resume);
-          setCurrentResume(resume);
-          setAppState("job-input");
-        } else {
-          throw new Error("Fallback save also failed");
-        }
-      } catch (saveError) {
-        console.error("🔥 Fallback save error:", saveError);
-        toast.error("Failed to save resume. Please try again.");
-      }
-    }
-  };
-
-  const handleJobAnalyzed = async (jobData: any) => {
-    setJobDescription(jobData);
-
-    try {
-      console.log("🔄 Analyzing job and generating suggestions");
-
-      const response = await fetch("/api/resume/tailor", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          resumeContent,
-          jobDescription: jobData,
-        }),
-      });
-
-      console.log("📡 Tailor Response status:", response.status);
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-          console.error("❌ Tailor API Error:", errorData);
-        } catch (parseError) {
-          console.error(
-            "❌ Failed to parse tailor error response:",
-            parseError
-          );
-        }
-        throw new Error(errorMessage);
-      }
-
-      const suggestionsData = await response.json();
-      console.log("✅ Suggestions generated successfully");
-      setSuggestions(suggestionsData);
-      setAppState("suggestions");
-    } catch (error) {
-      console.error("🔥 Error generating suggestions:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      toast.error(`Failed to generate AI suggestions: ${errorMessage}`);
-    }
-  };
-
-  const handleApplySuggestion = (type: string, content: any) => {
-    if (!resumeContent) return;
-
-    console.log("🔄 Applying suggestion:", { type, content });
-
-    switch (type) {
-      case "summary":
-        setResumeContent((prev) =>
-          prev ? { ...prev, summary: content } : null
-        );
-        break;
-      case "skills":
-        setResumeContent((prev) =>
-          prev
-            ? {
-                ...prev,
-                skills: [...prev.skills, content].filter(
-                  (skill, index, arr) => arr.indexOf(skill) === index
-                ),
-              }
-            : null
-        );
-        break;
-      case "experience":
-        // Add experience handling logic here if needed
-        break;
-    }
-  };
-
-  const handleSaveResume = async (content: ResumeContent) => {
-    if (!currentResume) {
-      toast.error("No resume selected to save");
-      return;
-    }
-
-    try {
-      console.log("🔄 Saving resume:", currentResume.id);
-
-      const response = await fetch(`/api/resumes/${currentResume.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({ content }),
-      });
-
-      console.log("📡 PUT Response status:", response.status);
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-          console.error("❌ PUT API Error:", errorData);
-        } catch (parseError) {
-          console.error("❌ Failed to parse PUT error response:", parseError);
-        }
-        throw new Error(errorMessage);
-      }
-
-      console.log("✅ Resume saved successfully");
-      setResumeContent(content);
-      toast.success("Resume saved successfully!");
-    } catch (error) {
-      console.error("🔥 Error saving resume:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      toast.error(`Failed to save resume: ${errorMessage}`);
-      throw error;
-    }
-  };
-
-  const renderCurrentState = () => {
-    switch (appState) {
-      case "dashboard":
-        return (
-          <Dashboard
-            onNewResume={handleNewResume}
-            onOpenResume={handleOpenResume}
-          />
-        );
-      case "upload":
-        return (
-          <div className="min-h-screen bg-gray-50 py-8">
-            <div className="max-w-4xl mx-auto px-4">
-              <div className="mb-4">
-                <button
-                  onClick={() => setAppState("dashboard")}
-                  className="text-blue-600 hover:text-blue-800 flex items-center gap-2">
-                  ← Back to Dashboard
-                </button>
+        {resumeContent && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl animate-fade-in hover:bg-white/10 hover:border-purple-500/30 transition-all duration-300">
+            <h3 className="text-2xl font-semibold font-space-grotesk mb-6 flex items-center gap-3 gradient-text">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500/80 to-violet-600/80 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                <i className="ri-file-text-line text-white w-4 h-4 flex items-center justify-center"></i>
               </div>
-              <ResumeUpload onResumeProcessed={handleResumeProcessed} />
+              Resume Preview
+            </h3>
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent">
+              <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{resumeContent}</p>
             </div>
           </div>
-        );
-      case "job-input":
-        return (
-          <div className="min-h-screen bg-gray-50 py-8">
-            <div className="max-w-4xl mx-auto px-4">
-              <div className="mb-4">
-                <button
-                  onClick={() => setAppState("dashboard")}
-                  className="text-blue-600 hover:text-blue-800 flex items-center gap-2">
-                  ← Back to Dashboard
-                </button>
-              </div>
-              <JobDescriptionInput onJobAnalyzed={handleJobAnalyzed} />
-            </div>
-          </div>
-        );
-      case "suggestions":
-        return suggestions ? (
-          <div className="min-h-screen bg-gray-50 py-8">
-            <div className="max-w-6xl mx-auto px-4">
-              <div className="mb-6">
-                <button
-                  onClick={() => setAppState("dashboard")}
-                  className="text-blue-600 hover:text-blue-800 flex items-center gap-2 mb-4">
-                  ← Back to Dashboard
-                </button>
-                <div className="text-center">
-                  <h1 className="text-3xl font-bold">
-                    AI-Powered Resume Suggestions
-                  </h1>
-                  <p className="text-gray-600 mt-2">
-                    Review and apply the suggestions below to optimize your
-                    resume
-                  </p>
-                </div>
-              </div>
-              <ResumeSuggestions
-                suggestions={suggestions}
-                onApplySuggestion={handleApplySuggestion}
-              />
-              <div className="mt-8 text-center">
-                <button
-                  onClick={() => setAppState("editor")}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                  Edit Resume
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null;
-      case "editor":
-        return resumeContent ? (
-          <div className="min-h-screen bg-gray-50 py-8">
-            <div className="max-w-6xl mx-auto px-4">
-              <div className="mb-4">
-                <button
-                  onClick={() => setAppState("dashboard")}
-                  className="text-blue-600 hover:text-blue-800 flex items-center gap-2">
-                  ← Back to Dashboard
-                </button>
-              </div>
-              <ResumeEditor
-                initialContent={resumeContent}
-                resumeTitle={resumeTitle}
-                onSave={handleSaveResume}
-              />
-            </div>
-          </div>
-        ) : null;
-      default:
-        return null;
-    }
-  };
-
-  return renderCurrentState();
+        )}
+      </main>
+      
+      <Toaster />
+    </div>
+  );
 }
