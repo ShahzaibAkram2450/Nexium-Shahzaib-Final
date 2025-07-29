@@ -1,3 +1,4 @@
+// app/api/resume/upload/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import pdf from "pdf-parse";
 
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    // Check file size (10MB limit)
+    // ✅ Check file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
         { error: "File too large. Maximum size is 10MB." },
@@ -24,43 +25,44 @@ export async function POST(request: NextRequest) {
     let content = "";
     let title = file.name;
 
-    // Process different file types
-    if (file.type === "application/pdf") {
-      try {
-        const pdfData = await pdf(buffer);
-        content = String(pdfData.text || "").trim();
-      } catch (error) {
-        console.error("PDF parsing error:", error);
+    // ✅ Handle supported file types
+    switch (file.type) {
+      case "application/pdf":
+        try {
+          const pdfData = await pdf(buffer);
+          content = (pdfData.text || "").trim();
+        } catch (error) {
+          console.error("PDF parsing error:", error);
+          return NextResponse.json(
+            { error: "Failed to parse PDF file" },
+            { status: 400 }
+          );
+        }
+        break;
+
+      case "text/plain":
+        content = buffer.toString("utf-8").trim();
+        break;
+
+      case "application/msword":
+      case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return NextResponse.json(
-          { error: "Failed to parse PDF file" },
+          {
+            error:
+              "DOC/DOCX files are not supported yet. Please convert to PDF or paste the content directly.",
+          },
           { status: 400 }
         );
-      }
-    } else if (file.type === "text/plain") {
-      content = String(buffer.toString("utf-8") || "").trim();
-    } else if (
-      file.type === "application/msword" ||
-      file.type ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ) {
-      // For DOC/DOCX files, you might want to use a library like mammoth
-      // For now, we'll return an error asking users to convert to PDF or paste content
-      return NextResponse.json(
-        {
-          error:
-            "DOC/DOCX files are not supported yet. Please convert to PDF or paste the content directly.",
-        },
-        { status: 400 }
-      );
-    } else {
-      return NextResponse.json(
-        { error: "Unsupported file type" },
-        { status: 400 }
-      );
+
+      default:
+        return NextResponse.json(
+          { error: "Unsupported file type" },
+          { status: 400 }
+        );
     }
 
-    // Clean up the content
-    content = String(content || "").trim();
+    // ✅ Clean and validate content
+    content = content.trim();
 
     if (!content) {
       return NextResponse.json(
@@ -69,12 +71,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Remove the file extension from title
-    title = String(title || "").replace(/\.[^/.]+$/, "");
+    // ✅ Remove file extension for cleaner title
+    title = title.replace(/\.[^/.]+$/, "");
 
     return NextResponse.json({
-      content: content,
-      title: title,
+      content,
+      title,
       success: true,
     });
   } catch (error) {
