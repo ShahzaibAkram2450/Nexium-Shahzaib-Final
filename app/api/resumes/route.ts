@@ -5,10 +5,9 @@ import { cookies } from "next/headers";
 import clientPromise from "@/lib/mongodb";
 
 export async function GET(request: NextRequest) {
-  const supabase = createRouteHandlerClient({ cookies });
+  const supabase = createRouteHandlerClient({ cookies }); // ✅ MISSING IN ORIGINAL
 
   try {
-    // Get current session
     const {
       data: { session },
       error: sessionError,
@@ -35,7 +34,6 @@ export async function GET(request: NextRequest) {
       .sort({ updatedAt: -1 })
       .toArray();
 
-    // Convert MongoDB _id to avoid serialization issues
     const serializedResumes = resumes.map((resume) => ({
       ...resume,
       _id: resume._id.toString(),
@@ -55,7 +53,6 @@ export async function POST(request: NextRequest) {
   const supabase = createRouteHandlerClient({ cookies });
 
   try {
-    // Get current session
     const {
       data: { session },
       error: sessionError,
@@ -73,7 +70,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Parse request body with error handling
     let body;
     try {
       body = await request.json();
@@ -94,7 +90,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate content structure if needed
     if (typeof content !== "object") {
       return NextResponse.json(
         { error: "Content must be a valid object" },
@@ -106,7 +101,7 @@ export async function POST(request: NextRequest) {
     const db = client.db("resume-tailor");
 
     const resume = {
-      id: `resume_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Make ID more unique
+      id: `resume_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId: session.user.id,
       title,
       content,
@@ -117,7 +112,6 @@ export async function POST(request: NextRequest) {
 
     const result = await db.collection("resumes").insertOne(resume);
 
-    // Return the resume with the MongoDB _id converted to string
     const createdResume = {
       ...resume,
       _id: result.insertedId.toString(),
@@ -127,7 +121,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("🔥 Server error creating resume:", error);
 
-    // Provide more specific error information
     if (error instanceof Error) {
       return NextResponse.json(
         { error: `Failed to create resume: ${error.message}` },
