@@ -1,5 +1,10 @@
+// app/api/parse-pdf/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 const pdf = require("pdf-parse");
+
+// 🚨 This is required to disable Edge runtime
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
