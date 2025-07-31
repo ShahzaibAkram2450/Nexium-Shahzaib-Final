@@ -3,13 +3,12 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function AuthCallback() {
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
 
   useEffect(() => {
     const handleAuthCallback = async () => {

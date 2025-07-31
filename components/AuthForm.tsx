@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function AuthForm() {
@@ -13,7 +13,6 @@ export default function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const { toast } = useToast();
-  const supabase = createClient();
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();

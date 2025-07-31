@@ -1,71 +1,58 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import clientPromise from "@/lib/mongodb";
-
-export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-  const supabase = createClient()
+  try {
+    const { resumeContent, jobDescription } = await request.json();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    if (!resumeContent || !jobDescription) {
+      return NextResponse.json(
+        { error: "Missing required data" },
+        { status: 400 }
+      );
+    }
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Missing Gemini API key" },
+        { status: 500 }
+      );
+    }
 
-  const { resumeContent, jobDescription } = await request.json()
+    const ai = new GoogleGenAI({ apiKey });
 
-  if (!resumeContent || !jobDescription) {
+    const prompt = `
+Resume: ${JSON.stringify(resumeContent)}
+Job Description: ${JSON.stringify(jobDescription)}
+
+Give me a list of 3 tailored resume improvement suggestions as an array of bullet points.
+`.trim();
+
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    let text = result.text?.trim() || "";
+    console.log("Gemini raw response:", text);
+
+    // Clean and split into array
+    const suggestions = text
+      .split(/\n+/) // split by new lines
+      .filter((line) => line.trim().match(/^(\d+\.|-|\*)\s+/)) // match bullet-like lines
+      .map((line) => line.replace(/^(\d+\.|-|\*)\s+/, "").trim()); // remove numbering/bullets
+
+    if (!suggestions.length) {
+      throw new Error("Could not extract suggestions");
+    }
+
+    return NextResponse.json({ suggestions });
+  } catch (error) {
+    console.error("Tailor-resume error:", error);
     return NextResponse.json(
-      { error: "Missing required data" },
-      { status: 400 }
-    );
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Missing Gemini API key" },
+      { error: "Failed to generate suggestions" },
       { status: 500 }
     );
   }
-
-  const ai = new GoogleGenAI({ apiKey });
-
-  const prompt = `
-Based on the resume and job description provided, please generate a new, tailored resume in markdown format. The new resume should be professionally formatted and highlight the candidate's skills and experience that are most relevant to the job description.
----
-Resume:
-${resumeContent}
----
-Job Description:
-${jobDescription}
-`.trim();
-
-  const result = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
-
-  const tailoredResume = result.text?.trim() || "";
-
-  if (!tailoredResume) {
-    throw new Error("Could not generate tailored resume");
-  }
-
-  const client = await clientPromise;
-  const db = client.db();
-  const resumesCollection = db.collection("resumes");
-
-  await resumesCollection.insertOne({
-    userId: user.id,
-    originalResume: resumeContent,
-    tailoredResume,
-    createdAt: new Date(),
-  });
-
-  return NextResponse.json({ tailoredResume });
 }

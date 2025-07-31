@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { supabase } from "@/lib/supabase";
 import Header from "@/components/Header";
 import ResumeUpload from "@/components/ResumeUpload";
 import JobRequirementsInput from "@/components/JobRequirementsInput";
-import TailoredResume from "@/components/TailoredResume";
-import ResumeHistory from "@/components/ResumeHistory";
+import SuggestionsList from "@/components/SuggestionsList";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -16,11 +15,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [resumeContent, setResumeContent] = useState("");
   const [jobDescription, setJobDescription] = useState("");
-  const [tailoredResume, setTailoredResume] = useState("");
-  const [generatingResume, setGeneratingResume] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [generatingSuggestions, setGeneratingSuggestions] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
 
   useEffect(() => {
     const checkUser = async () => {
@@ -38,9 +36,9 @@ export default function Dashboard() {
     };
 
     checkUser();
-  }, [router, supabase.auth]);
+  }, [router]);
 
-  const handleGenerateResume = async () => {
+  const handleGenerateSuggestions = async () => {
     if (!resumeContent || !jobDescription) {
       toast({
         title: "Missing Information",
@@ -50,7 +48,7 @@ export default function Dashboard() {
       return;
     }
 
-    setGeneratingResume(true);
+    setGeneratingSuggestions(true);
 
     try {
       const response = await fetch("/api/tailor-resume", {
@@ -67,23 +65,23 @@ export default function Dashboard() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to generate resume");
+        throw new Error(data.error || "Failed to generate suggestions");
       }
 
-      setTailoredResume(data.tailoredResume);
+      setSuggestions(data.suggestions);
 
       toast({
         title: "Success!",
-        description: "AI resume generated successfully.",
+        description: "AI suggestions generated successfully.",
       });
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to generate resume",
+        description: error.message || "Failed to generate suggestions",
         variant: "destructive",
       });
     } finally {
-      setGeneratingResume(false);
+      setGeneratingSuggestions(false);
     }
   };
 
@@ -127,13 +125,12 @@ export default function Dashboard() {
         <div className="flex flex-col gap-8 animate-fade-in">
           <ResumeUpload onResumeUploaded={setResumeContent} />
           <JobRequirementsInput onJobDescription={setJobDescription} />
-          <TailoredResume
-            tailoredResume={tailoredResume}
-            loading={generatingResume}
-            onGenerateResume={handleGenerateResume}
+          <SuggestionsList
+            suggestions={suggestions}
+            loading={generatingSuggestions}
+            onGenerateSuggestions={handleGenerateSuggestions}
             canGenerate={!!resumeContent && !!jobDescription}
           />
-          <ResumeHistory />
         </div>
 
         {/* Resume Preview */}
