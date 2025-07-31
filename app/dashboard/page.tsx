@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import Header from "@/components/Header";
 import ResumeUpload from "@/components/ResumeUpload";
 import JobRequirementsInput from "@/components/JobRequirementsInput";
 import TailoredResume from "@/components/TailoredResume";
+import ResumeHistory from "@/components/ResumeHistory";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [generatingResume, setGeneratingResume] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const supabase = createClient();
 
   useEffect(() => {
     const checkUser = async () => {
@@ -36,7 +38,7 @@ export default function Dashboard() {
     };
 
     checkUser();
-  }, [router]);
+  }, [router, supabase.auth]);
 
   const handleGenerateResume = async () => {
     if (!resumeContent || !jobDescription) {
@@ -131,6 +133,7 @@ export default function Dashboard() {
             onGenerateResume={handleGenerateResume}
             canGenerate={!!resumeContent && !!jobDescription}
           />
+          <ResumeHistory />
         </div>
 
         {/* Resume Preview */}

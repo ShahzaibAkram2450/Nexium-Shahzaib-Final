@@ -3,24 +3,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isConfigured, setIsConfigured] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
   useEffect(() => {
-    const configured = !!isSupabaseConfigured();
-    setIsConfigured(configured);
-
-    if (!configured) {
-      setLoading(false);
-      return;
-    }
-
     const getUser = async () => {
       try {
         const {
@@ -43,10 +35,9 @@ export default function Header() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase.auth]);
 
   const handleSignOut = async () => {
-    if (!isConfigured) return;
     try {
       await supabase.auth.signOut();
       router.push('/');
@@ -72,11 +63,7 @@ export default function Header() {
               Features
             </Link>
 
-            {!isConfigured ? (
-              <div className="text-amber-400 text-sm font-medium px-3 py-1 rounded-full bg-amber-500/10">
-                Setup required - Check .env.local
-              </div>
-            ) : loading ? (
+            {loading ? (
               <div className="animate-pulse bg-purple-500/20 h-8 w-20 rounded-full"></div>
             ) : user ? (
               <div className="flex items-center space-x-4">
