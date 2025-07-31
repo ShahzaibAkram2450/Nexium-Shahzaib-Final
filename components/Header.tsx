@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import Link from "next/link";
@@ -9,6 +10,7 @@ export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isConfigured, setIsConfigured] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const configured = !!isSupabaseConfigured();
@@ -47,6 +49,7 @@ export default function Header() {
     if (!isConfigured) return;
     try {
       await supabase.auth.signOut();
+      router.push('/');
     } catch (error) {
       console.log("Sign out failed:", error);
     }
