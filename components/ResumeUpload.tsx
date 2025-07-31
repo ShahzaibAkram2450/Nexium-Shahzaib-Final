@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -122,7 +121,7 @@ export default function ResumeUpload({ onResumeUploaded }: ResumeUploadProps) {
           <input
             id="file-upload"
             type="file"
-            accept=".txt"
+            accept=".pdf, .txt"
             onChange={handleChange}
             className="hidden"
             disabled={uploading}
