@@ -23,10 +23,13 @@ export async function POST(request: NextRequest) {
     const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
-Resume: ${JSON.stringify(resumeContent)}
-Job Description: ${JSON.stringify(jobDescription)}
-
-Give me a list of 3 tailored resume improvement suggestions as an array of bullet points.
+Based on the resume and job description provided, please generate a new, tailored resume in markdown format. The new resume should be professionally formatted and highlight the candidate's skills and experience that are most relevant to the job description.
+---
+Resume:
+${resumeContent}
+---
+Job Description:
+${jobDescription}
 `.trim();
 
     const result = await ai.models.generateContent({
@@ -34,20 +37,13 @@ Give me a list of 3 tailored resume improvement suggestions as an array of bulle
       contents: prompt,
     });
 
-    let text = result.text?.trim() || "";
-    console.log("Gemini raw response:", text);
+    const tailoredResume = result.text?.trim() || "";
 
-    // Clean and split into array
-    const suggestions = text
-      .split(/\n+/) // split by new lines
-      .filter((line) => line.trim().match(/^(\d+\.|-|\*)\s+/)) // match bullet-like lines
-      .map((line) => line.replace(/^(\d+\.|-|\*)\s+/, "").trim()); // remove numbering/bullets
-
-    if (!suggestions.length) {
-      throw new Error("Could not extract suggestions");
+    if (!tailoredResume) {
+      throw new Error("Could not generate tailored resume");
     }
 
-    return NextResponse.json({ suggestions });
+    return NextResponse.json({ tailoredResume });
   } catch (error) {
     console.error("Tailor-resume error:", error);
     return NextResponse.json(
