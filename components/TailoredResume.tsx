@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from "@/components/ui/use-toast";
 import jsPDF from 'jspdf';
-import { marked } from 'marked';
+import html2canvas from 'html2canvas';
 
 interface TailoredResumeProps {
   tailoredResume: string;
@@ -23,46 +23,18 @@ export default function TailoredResume({
   const { toast } = useToast();
   const resumeRef = useRef<HTMLDivElement>(null);
 
-  const handleDownloadPDF = async () => {
-    const pdf = new jsPDF();
-    const tokens = marked.lexer(tailoredResume);
-    let y = 15;
-
-    for (const token of tokens) {
-      if (y > 280) {
-        pdf.addPage();
-        y = 15;
-      }
-
-      if (token.type === 'heading') {
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(token.depth === 1 ? 18 : 14);
-        pdf.text(token.text, 10, y);
-        y += 8;
-        if (token.depth === 1) {
-          pdf.setDrawColor(0);
-          pdf.line(10, y, 200, y);
-          y += 8;
-        }
-      } else if (token.type === 'paragraph') {
-        pdf.setFont('times', 'normal');
-        pdf.setFontSize(12);
-        const lines = pdf.splitTextToSize(token.text, 180);
-        pdf.text(lines, 10, y);
-        y += lines.length * 7;
-      } else if (token.type === 'list') {
-        for (const item of token.items) {
-          pdf.setFont('times', 'normal');
-          pdf.setFontSize(12);
-          const lines = pdf.splitTextToSize(`• ${item.text}`, 180);
-          pdf.text(lines, 15, y);
-          y += lines.length * 7;
-        }
-      }
-      y += 4;
+  const handleDownloadPDF = () => {
+    const input = resumeRef.current;
+    if (input) {
+      html2canvas(input).then((canvas) => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF();
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save("tailored-resume.pdf");
+      });
     }
-
-    pdf.save('tailored-resume.pdf');
   };
 
   const handleCopy = () => {
